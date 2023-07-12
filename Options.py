@@ -30,7 +30,7 @@ class OptionFromPrice():
         return S * N_prime(d1) * sqrt(t)
 
     def find_iv_newton(self, S, K, r, t, market_price):
-        sigma_guess = 0.5
+        sigma_guess = 0.2
         for i in range(OptionFromPrice._MAX_TRY):
             if self.c_p == 'C':
                 bs_price = EuropeanCall.call_price(S, sigma_guess, K, t, r)

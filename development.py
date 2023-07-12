@@ -226,23 +226,23 @@ from Options import *
 def _vega_d1(S, d1, t):
     return S * N_prime(d1) * sqrt(t)
 
-def find_iv_newton(S, K, r, t, market_price):
-    sigma_guess = 0.5
+def find_iv_newton_call(S, K, r, t, market_price):
+    best_guess = np.inf
+    sigma_guess = 0.2
     for i in range(1000):
-        if True:
-            bs_price = EuropeanCall.call_price(S, sigma_guess, K, t, r)
-        else:
-            bs_price = EuropeanPut.put_price(S, sigma_guess, K, t, r)
+        bs_price = EuropeanCall.call_price(S, sigma_guess, K, t, r)
         diff = market_price - bs_price
+        if abs(diff) < abs(market_price - best_guess):
+            best_guess = bs_price
         if abs(diff) < 0.01:
             return sigma_guess
         d1 = (log(S / K) + (r + sigma_guess ** 2 / 2) * t) / (sigma_guess * sqrt(t))
         vega = _vega_d1(S, d1, t)
         sigma_guess += diff / vega
-    return sigma_guess
+    return best_guess
 
 if __name__ == '__main__':
-    a = find_iv_newton(S=3932.59,
+    a = find_iv_newton_call(S=3932.59,
                    K=3810,
                    r=0,
                    t=0.00821917808219178,
