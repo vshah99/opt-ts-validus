@@ -218,30 +218,34 @@ class Portfolio:
                 daily_stats['PnL'] += s * (val['PnL'])
             print(f"Cumulative Total PnL: {daily_stats['PnL']}\n")
 
+from req_import import *
+N_prime = norm.pdf
+N = norm.cdf
+from Options import *
+
+def _vega_d1(S, d1, t):
+    return S * N_prime(d1) * sqrt(t)
+
+def find_iv_newton(S, K, r, t, market_price):
+    sigma_guess = 0.5
+    for i in range(1000):
+        if True:
+            bs_price = EuropeanCall.call_price(S, sigma_guess, K, t, r)
+        else:
+            bs_price = EuropeanPut.put_price(S, sigma_guess, K, t, r)
+        diff = market_price - bs_price
+        if abs(diff) < 0.01:
+            return sigma_guess
+        d1 = (log(S / K) + (r + sigma_guess ** 2 / 2) * t) / (sigma_guess * sqrt(t))
+        vega = _vega_d1(S, d1, t)
+        sigma_guess += diff / vega
+    return sigma_guess
 
 if __name__ == '__main__':
-    p1 = Position(entry_date='2021-02-01',
-                  call_put='Call',
-                  buy_sell='Sell',
-                  entry_side='Far',
-                  relative_strike_pct=-0.01,
-                  relative_expiration_months=1,
-                  mtm_side='Mid',
-                  exit_date=None)
+    a = find_iv_newton(S=3932.59,
+                   K=3810,
+                   r=0,
+                   t=0.00821917808219178,
+                   market_price=122.05)
 
-    # p2 = Position(entry_date='2021-02-01',
-    #               call_put='Call',
-    #               buy_sell='Buy',
-    #               entry_side='Far',
-    #               relative_strike_pct=-0.02,
-    #               relative_expiration_months=2,
-    #               mtm_side='Mid',
-    #               exit_date=None)
-
-    portfolio = Portfolio(start_date='2021-02-01',
-                          end_date='2021-03-23',
-                          positions=[p1],
-                          shares=[1])
-
-    portfolio.run_backtest()
-
+    print(a)

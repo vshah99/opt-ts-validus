@@ -2,6 +2,7 @@ import pandas as pd
 
 from req_import import *
 from helpers import *
+from Options import *
 
 class Position:
     @validate_call
@@ -37,6 +38,8 @@ class Position:
         self.active_position_expiry: Optional[datetime.date] = None
         self.entry_price: Optional[float] = None
         self.exit_price: Optional[float] = None
+
+        self.option_model = None
 
     def _enter_position(self, curr_data):
         underlying_px = curr_data['adjusted_close'].values[0]
@@ -81,7 +84,7 @@ class Position:
         self.active_position = None
         self.active_position_expiry = None
 
-    def _get_stats(self, curr_data):
+    def _get_pnl(self, curr_data):
         if self.active_position is None:
             mark_px = self.exit_price
         else:
@@ -96,12 +99,32 @@ class Position:
         pnl = (mark_px - self.entry_price) * (1 if self.buy_sell == 'Buy' else -1)
         return {'PnL': pnl}
 
+    def _days_to_expiry(self, curr_date):
+        if self.active_position_expiry is None:
+            return 0
+        else:
+            return (self.active_position_expiry - curr_date).days
+
+    def _instantiate_option(self, curr_data):
+        if self.active_position:
+            option_dict = curr_data.query("option_symbol == @self.active_position").to_dict('records')[0]
+
+            option = OptionFromPrice(c_p=option_dict['call_put'],
+                                   asset_price=option_dict['adjusted_close'],
+                                   option_market_price=(option_dict['bid'] + option_dict['ask']) / 2,
+                                   strike_price=option_dict['strike'],
+                                   time_to_expiration=self._days_to_expiry(option_dict['date']) / 365,
+                                   risk_free_rate=0.001)
+            return option
+        else:
+            return None
+
     def process_date(self, dt: datetime.date, curr_data: pd.DataFrame):
         if self.active_position is None:
             if dt < self.entry_date:
                 return {'PnL': 0}
             elif self.exit_price is not None:
-                return self._get_stats(curr_data)
+                return self._get_pnl(curr_data)
 
             assert dt == self.entry_date, "Have not processed entry date yet!"
             self._enter_position(curr_data)
@@ -112,7 +135,12 @@ class Position:
         else:
             assert dt > self.entry_date and dt < self.exit_date, "Invalid date for an active position!"
 
-        return self._get_stats(curr_data)
+
+        self.option_model = self._instantiate_option(curr_data)
+        if self.option_model is not None:
+            pass
+            #self.option_model._get_greeks()
+        return self._get_pnl(curr_data)
 
     def __str__(self):
         return self.active_position
