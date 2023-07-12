@@ -30,6 +30,7 @@ class OptionFromPrice():
         return S * N_prime(d1) * sqrt(t)
 
     def find_iv_newton(self, S, K, r, t, market_price):
+        best_guess = np.inf
         sigma_guess = 0.2
         for i in range(OptionFromPrice._MAX_TRY):
             if self.c_p == 'C':
@@ -37,12 +38,14 @@ class OptionFromPrice():
             else:
                 bs_price = EuropeanPut.put_price(S, sigma_guess, K, t, r)
             diff = market_price - bs_price
+            if abs(diff) < abs(market_price - best_guess):
+                best_guess = bs_price
             if abs(diff) < OptionFromPrice._ONE_CENT:
                 return sigma_guess
             d1 = (log(S / K) + (r + sigma_guess ** 2 / 2) * t) / (sigma_guess * sqrt(t))
             vega = OptionFromPrice._vega_d1(S, d1, t)
             sigma_guess += diff / vega
-        return sigma_guess
+        return bs_price
 
 class EuropeanCall():
     @staticmethod
