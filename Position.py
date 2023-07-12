@@ -114,7 +114,7 @@ class Position:
         S = option['adjusted_close']
         K = option['strike']
         t = self._days_to_expiry(option['date']) / 365
-        r = 0.001
+        r = 0.00
 
         intrinsic = max(S - K, 0) if self.call_put == 'Call' else max(K - S, 0)
         if price < intrinsic:
