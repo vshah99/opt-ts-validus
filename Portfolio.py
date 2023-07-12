@@ -43,12 +43,32 @@ class Portfolio:
 
             data_slice = self.data.query("date == @d")
             print(d)
-            daily_stats = {'PnL': 0}
+            print("SPX Price: ", data_slice['adjusted_close'].values[0])
+            daily_stats = {'PnL': 0, 'iv': 0, 'delta': 0, 'gamma': 0, 'theta': 0, 'vega': 0}
             for p, s in zip(self.position_list, self.shares_list):
-                val = p.process_date(d, data_slice)
+                if p.active_position is not None: print(f"Security {p}:")
+                stats = p.process_date(d, data_slice)
+                b_s_multiplier = 1 if p.buy_sell == 'Buy' else -1
                 if p.active_position is not None:
-                    print(f"Security {p}:\n",
-                          f"\tNumber of Shares: {s}\n",
-                          f"\tCumulative PnL per Share: {val['PnL']}")
-                daily_stats['PnL'] += s * (val['PnL'])
-            print(f"Cumulative Total PnL: {daily_stats['PnL']}\n")
+                    print(f"\tNumber of Shares: {s} {'long' if p.buy_sell=='Buy' else 'short'}\n",
+                          f"\tCumulative PnL per Share: {stats['PnL']}",
+                          f"\tIV per Share: {stats['iv']}",
+                          f"\tDelta per Share: {stats['delta'] * b_s_multiplier}",
+                          f"\tGamma per Share: {stats['gamma'] * b_s_multiplier}",
+                          f"\tVega per Share: {stats['vega'] * b_s_multiplier}",
+                          f"\tTheta per Share: {stats['theta'] * b_s_multiplier}",)
+                daily_stats['PnL'] += s * (stats['PnL'])
+                daily_stats['iv'] += s * (stats['iv'] ** 2)
+                daily_stats['delta'] += s * (stats['delta']) * b_s_multiplier
+                daily_stats['gamma'] += s * (stats['gamma']) * b_s_multiplier
+                daily_stats['theta'] += s * (stats['theta']) * b_s_multiplier
+                daily_stats['vega'] += s * (stats['vega']) * b_s_multiplier
+
+            daily_stats['iv'] = np.sqrt(daily_stats['iv'])
+            print(f"Cumulative Total PnL: {daily_stats['PnL']}")
+            print(f"Total IV: {daily_stats['iv']}")
+            print(f"Total Delta: {daily_stats['delta']}")
+            print(f"Total Gamma: {daily_stats['gamma']}")
+            print(f"Total Theta: {daily_stats['theta']}")
+            print(f"Total Vega: {daily_stats['vega']}")
+            print("\n\n")

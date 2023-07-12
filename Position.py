@@ -2,7 +2,6 @@ import pandas as pd
 
 from req_import import *
 from helpers import *
-from Options import *
 
 class Position:
     @validate_call
@@ -97,7 +96,7 @@ class Position:
                 mark_px = option['ask'] if self.buy_sell == 'Buy' else option['bid']
             mark_px = mark_px.iloc[0]
         pnl = (mark_px - self.entry_price) * (1 if self.buy_sell == 'Buy' else -1)
-        return {'PnL': pnl}
+        return pnl
 
     def _days_to_expiry(self, curr_date):
         if self.active_position_expiry is None:
@@ -105,26 +104,38 @@ class Position:
         else:
             return (self.active_position_expiry - curr_date).days
 
-    def _instantiate_option(self, curr_data):
-        if self.active_position:
-            option_dict = curr_data.query("option_symbol == @self.active_position").to_dict('records')[0]
+    def _get_option_stats(self, curr_data):
+        pnl = self._get_pnl(curr_data)
+        if self.active_position is None:
+            return {'value': 0, 'PnL': pnl, 'iv': 0,'delta': 0, 'gamma': 0, 'theta': 0, 'vega': 0}
 
-            option = OptionFromPrice(c_p=option_dict['call_put'],
-                                   asset_price=option_dict['adjusted_close'],
-                                   option_market_price=(option_dict['bid'] + option_dict['ask']) / 2,
-                                   strike_price=option_dict['strike'],
-                                   time_to_expiration=self._days_to_expiry(option_dict['date']) / 365,
-                                   risk_free_rate=0.001)
-            return option
-        else:
-            return None
+        option = curr_data.query("option_symbol == @self.active_position").to_dict('records')[0]
+        price = (option['bid'] + option['ask']) / 2
+        S = option['adjusted_close']
+        K = option['strike']
+        t = self._days_to_expiry(option['date']) / 365
+        r = 0.001
+
+        intrinsic = max(S - K, 0) if self.call_put == 'Call' else max(K - S, 0)
+        if price < intrinsic:
+            print(f"Below intrinsic: {self.active_position} {self.call_put} {S} {K} {t} {r} {price}")
+            print("Setting price to ask")
+            price = option['ask']
+
+        implied_vol = iv(price, S, K, t, r, 'c' if self.call_put == 'Call' else 'p')
+        implied_delta = delta('c' if self.call_put == 'Call' else 'p', S, K, t, r, implied_vol)
+        implied_gamma = gamma('c' if self.call_put == 'Call' else 'p', S, K, t, r, implied_vol)
+        implied_theta = theta('c' if self.call_put == 'Call' else 'p', S, K, t, r, implied_vol)
+        implied_vega = vega('c' if self.call_put == 'Call' else 'p', S, K, t, r, implied_vol)
+        return {'value': price, 'PnL': pnl, 'iv': implied_vol, 'delta': implied_delta, 'gamma': implied_gamma,
+                'theta': implied_theta, 'vega': implied_vega}
 
     def process_date(self, dt: datetime.date, curr_data: pd.DataFrame):
         if self.active_position is None:
             if dt < self.entry_date:
-                return {'PnL': 0}
+                return {'value': 0, 'PnL': 0, 'iv': 0,'delta': 0, 'gamma': 0, 'theta': 0, 'vega': 0}
             elif self.exit_price is not None:
-                return self._get_pnl(curr_data)
+                return {'value': 0, 'PnL': self._get_pnl(curr_data), 'iv': 0,'delta': 0, 'gamma': 0, 'theta': 0, 'vega': 0}
 
             assert dt == self.entry_date, "Have not processed entry date yet!"
             self._enter_position(curr_data)
@@ -135,12 +146,8 @@ class Position:
         else:
             assert dt > self.entry_date and dt < self.exit_date, "Invalid date for an active position!"
 
-
-        self.option_model = self._instantiate_option(curr_data)
-        if self.option_model is not None:
-            pass
-            #self.option_model._get_greeks()
-        return self._get_pnl(curr_data)
+        stats = self._get_option_stats(curr_data)
+        return stats
 
     def __str__(self):
         return self.active_position
