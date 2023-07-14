@@ -14,6 +14,10 @@ class Portfolio:
             return None
         raise ValueError("Position List must not be empty")
 
+    def reset_positions(self):
+        for p in self.position_list:
+            p.reset()
+
     @validate_call(config=dict(arbitrary_types_allowed=True))
     def __init__(self,
                  start_date: str,
@@ -33,9 +37,11 @@ class Portfolio:
         if shares is None:
             shares = [1] * len(positions)
         assert len(shares) == len(positions)
+        assert all([s > 0 for s in shares]), "Shares must be positive. For short, use position init"
         self.shares_list = shares
 
     def run_backtest(self):
+        all_days = []
         for d in self._valid_date_list:
             d = pd.to_datetime(d)
             if self.start_date > d or self.end_date < d:
@@ -44,7 +50,7 @@ class Portfolio:
             data_slice = self.data.query("date == @d")
             print(d)
             print("SPX Price: ", data_slice['adjusted_close'].values[0])
-            daily_stats = {'PnL': 0, 'iv': 0, 'delta': 0, 'gamma': 0, 'theta': 0, 'vega': 0}
+            daily_stats = {'date': d, 'SPX': data_slice['adjusted_close'].values[0], 'PnL': 0, 'iv': 0, 'delta': 0, 'gamma': 0, 'theta': 0, 'vega': 0}
             for p, s in zip(self.position_list, self.shares_list):
                 if p.active_position is not None: print(f"Security {p}:")
                 stats = p.process_date(d, data_slice)
@@ -63,12 +69,16 @@ class Portfolio:
                 daily_stats['gamma'] += s * (stats['gamma']) * b_s_multiplier
                 daily_stats['theta'] += s * (stats['theta']) * b_s_multiplier
                 daily_stats['vega'] += s * (stats['vega']) * b_s_multiplier
-
             daily_stats['iv'] = np.sqrt(daily_stats['iv'])
+
             print(f"Cumulative Total PnL: {daily_stats['PnL']}")
             print(f"Total IV: {daily_stats['iv']}")
             print(f"Total Delta: {daily_stats['delta']}")
             print(f"Total Gamma: {daily_stats['gamma']}")
             print(f"Total Theta: {daily_stats['theta']}")
             print(f"Total Vega: {daily_stats['vega']}")
-            print("\n\n")
+            print("\n")
+            all_days.append(daily_stats)
+        all_days = pd.DataFrame(all_days)
+        self.reset_positions()
+        return all_days

@@ -38,13 +38,17 @@ class Position:
         self.entry_price: Optional[float] = None
         self.exit_price: Optional[float] = None
 
-        self.option_model = None
+    def reset(self):
+        self.active_position = None
+        self.active_position_expiry = None
+        self.entry_price = None
+        self.exit_price = None
 
     def _enter_position(self, curr_data):
         underlying_px = curr_data['adjusted_close'].values[0]
         strike = underlying_px * (
             1 - self.relative_strike_pct if self.call_put == 'Call' else 1 + self.relative_strike_pct)
-        strike = base_round(strike, base=5)
+        strike = base_round(strike, base=5) #TODO: make this work for any K increment
         expiration = curr_data.expiration.unique()[self.relative_expiration_months - 1]
         option = curr_data.query("strike==@strike and expiration==@expiration and call_put==@self.call_put[0]")
         assert len(option) == 1, "Multiple matching options"
