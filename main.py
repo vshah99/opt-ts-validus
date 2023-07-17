@@ -15,7 +15,10 @@ def plot_cols(dfs, x_col, y_cols, title, strikes):
         if i != len(y_cols) - 1:
             axs[i].set_xlabel('')
             axs[i].set_xticklabels([])
+        axs[i].set_ylabel(y_cols[i])
     fig.suptitle(title)
+    fig.tight_layout()
+    fig.subplots_adjust(top=0.95)
     plt.show()
 
 if __name__ == '__main__':
@@ -59,29 +62,52 @@ if __name__ == '__main__':
                         positions=[p2, p3],
                         shares=[1, 1])
 
-    # daily_stats = strat_1.run_backtest()
-    # plot_cols(daily_stats,
-    #           'date', ['SPX', 'PnL'],
-    #           'Startegy 1: SPX and PnL',
-    #           strikes=[3810])
-    # #input("Press Enter to continue...")
-    #
-    # daily_stats = strat_2.run_backtest()
-    # plot_cols(daily_stats,
-    #           'date', ['SPX', 'PnL', 'iv'],
-    #           'Startegy 2: SPX, PnL, and IV',
-    #           strikes=[3810])
-    #input("Press Enter to continue...")
-    #
-    # daily_stats = strat_3.run_backtest()
-    # plot_cols(daily_stats,
-    #           'date', ['SPX', 'PnL', 'delta', 'iv'],
-    #           'Startegy 3: SPX, PnL, Delta and IV',
-    #           strikes=[3810, 3850])
+    ######## Question 1 ########
+    y = input("Enter (y/Y) to run Q1...")
+    if y == 'y' or y == 'Y':
+        daily_stats = strat_1.run_backtest()
+        plot_cols(daily_stats,
+                  'date', ['SPX', 'PnL'],
+                  'Strategy 1: SPX and PnL',
+                  strikes=[3810])
 
-    stats = [strat_1.run_backtest() , strat_2.run_backtest()]
-    plot_cols(stats,
-                'date', ['SPX', 'iv', 'PnL', 'delta', 'gamma', 'theta', 'vega'],
-                'Startegy 1 and 2: SPX, IV, PnL, Greeks',
-                strikes=[3810])
+
+    ######## Question 2, 5 ########
+    y = input("Enter (y/Y) to run Q2+5...")
+    if y == 'y' or y == 'Y':
+        daily_stats = strat_2.run_backtest()
+        plot_cols(daily_stats,
+                  'date', ['SPX', 'PnL', 'iv'],
+                  'Strategy 2: SPX, PnL, and IV',
+                  strikes=[3810])
+
+    ######## Question 3, 4 ########
+    y = input("Enter (y/Y) to run Q3+4...")
+    if y == 'y' or y == 'Y':
+        daily_stats = strat_3.run_backtest()
+        plot_cols(daily_stats,
+                  'date', ['SPX', 'PnL', 'delta'],
+                  'Strategy 3: SPX, PnL, and Delta',
+                  strikes=[3810, 3850])
+
+    ######## Question 6 ########
+    y = input("Enter (y/Y) to run Q6...")
+    if y == 'y' or y == 'Y':
+        stats = [strat_1.run_backtest() , strat_2.run_backtest()]
+        plot_cols(stats,
+                    'date', ['SPX', 'delta', 'gamma', 'theta', 'vega'],
+                    'Strategy 1 and 2: SPX, IV, PnL, Greeks',
+                    strikes=[3810])
+
+        for greek in ['price', 'delta', 'gamma', 'theta', 'vega']:
+            for p in [p1, p2]:
+                x, y, S, K = p.plot_greek(greek, all_data=Portfolio.data)
+                plt.plot(x, y, label=str(p))
+            plt.axvline(x=S, color='r', linestyle='--', label='S_0')
+            plt.axvline(x=K, color='g', linestyle='--', label='K')
+            plt.legend()
+            plt.title(f'{greek.title()} for 1 month and 2 month options')
+            plt.xlabel('SPX Price')
+            plt.ylabel(f'{greek.title()}')
+            plt.show()
 

@@ -102,11 +102,11 @@ class Position:
         pnl = (mark_px - self.entry_price) * (1 if self.buy_sell == 'Buy' else -1)
         return pnl
 
-    def _days_to_expiry(self, curr_date):
-        if self.active_position_expiry is None:
-            return 0
-        else:
-            return (self.active_position_expiry - curr_date).days
+    def _days_to_expiry(self, curr_date, expiry_date=None):
+        if expiry_date is None:
+            assert self.active_position_expiry is not None, "Must provide expiry_date if position is not active"
+            expiry_date = self.active_position_expiry
+        return (expiry_date - curr_date).days
 
     def _get_option_stats(self, curr_data):
         pnl = self._get_pnl(curr_data)
@@ -153,5 +153,47 @@ class Position:
         stats = self._get_option_stats(curr_data)
         return stats
 
+    def plot_greek(self, greek, all_data):
+        curr_data = all_data.query("date == @self.entry_date")
+        underlying_px = curr_data['adjusted_close'].values[0]
+        strike = underlying_px * (
+            1 - self.relative_strike_pct if self.call_put == 'Call' else 1 + self.relative_strike_pct)
+        strike = base_round(strike, base=5)
+        expiration = curr_data.expiration.unique()[self.relative_expiration_months - 1]
+        option = curr_data.query("strike==@strike and expiration==@expiration and call_put==@self.call_put[0]")
+        option = option.to_dict('records')[0]
+
+        price = (option['bid'] + option['ask']) / 2
+        S = option['adjusted_close']
+        K = option['strike']
+        t = self._days_to_expiry(option['date'], expiration) / 365
+        r = 0.00
+
+        intrinsic = max(S - K, 0) if self.call_put == 'Call' else max(K - S, 0)
+        if price < intrinsic:
+            print(f"Below intrinsic: {self.active_position} {self.call_put} {S} {K} {t} {r} {price}")
+            print("Setting price to ask")
+            price = option['ask']
+
+        implied_vol = iv(price, S, K, t, r, 'c' if self.call_put == 'Call' else 'p')
+        S_range = np.linspace(0.8 * S, 1.2 * S, 50)
+        if greek=='price':
+            vals = [bs('c' if self.call_put == 'Call' else 'p', s, K, t, r, implied_vol) for s in S_range]
+        elif greek=='delta':
+            vals = [delta('c' if self.call_put == 'Call' else 'p', s, K, t, r, implied_vol) for s in S_range]
+        elif greek=='gamma':
+            vals = [gamma('c' if self.call_put == 'Call' else 'p', s, K, t, r, implied_vol) for s in S_range]
+        elif greek=='theta':
+            vals = [theta('c' if self.call_put == 'Call' else 'p', s, K, t, r, implied_vol) for s in S_range]
+        elif greek=='vega':
+            vals = [vega('c' if self.call_put == 'Call' else 'p', s, K, t, r, implied_vol) for s in S_range]
+        return S_range, vals, S, K
+
+
     def __str__(self):
-        return self.active_position
+        if self.active_position is not None:
+            return self.active_position
+        else:
+            return f"{self.call_put} " \
+                   f"{self.relative_expiration_months}mo " \
+                   f"{100*abs(self.relative_strike_pct)}% {'ITM' if self.relative_strike_pct>0 else 'OTM'}"
